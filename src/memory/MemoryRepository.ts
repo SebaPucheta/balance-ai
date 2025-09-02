@@ -29,7 +29,7 @@ export class MemoryRepository {
   }
 
   async recent(userId: string, limit = 6): Promise<MemoryItem[]> {
-    // Intento 1: asume sort key 'sk'
+    // Attempt 1: assume sort key 'sk'
     try {
       const out = await ddb.send(new QueryCommand({
         TableName: process.env.USER_MEMORY_TABLE,
@@ -42,7 +42,7 @@ export class MemoryRepository {
       return (out.Items as MemoryItem[]) || [];
     } catch (e) {
       if (!isValidationException(e)) throw e;
-      // Intento 2: tabla sin sort key. Usar FilterExpression y ordenar en memoria
+      // Attempt 2: table without sort key. Use FilterExpression and sort in memory
       const out = await ddb.send(new QueryCommand({
         TableName: process.env.USER_MEMORY_TABLE,
         KeyConditionExpression: 'userId = :u',

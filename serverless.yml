@@ -78,16 +78,38 @@ custom:
     sourcemap: true
     sourcesContent: false
     keepNames: false
-    # Estas deps viven en el Layer, no en el bundle
+    # These deps live in the Layer, not in the bundle
     exclude:
       - '@google-cloud/firestore'
       - '@grpc/grpc-js'
       - 'google-gax'
       - 'google-auth-library'
       - 'protobufjs'
+
     external:
       - '@google-cloud/firestore'
       - '@grpc/grpc-js'
       - 'google-gax'
       - 'google-auth-library'
       - 'protobufjs'
+
+resources:
+  Resources:
+    ChatMemoryTable:
+      Type: 'AWS::DynamoDB::Table'
+      Properties:
+        TableName: ${self:provider.environment.USER_MEMORY_TABLE}
+        AttributeDefinitions:
+          - AttributeName: userId
+            AttributeType: S
+          - AttributeName: sk
+            AttributeType: S
+        KeySchema:
+          - AttributeName: userId
+            KeyType: HASH
+          - AttributeName: sk
+            KeyType: RANGE
+        BillingMode: PAY_PER_REQUEST
+        TimeToLiveSpecification:
+          AttributeName: ttl
+          Enabled: true
