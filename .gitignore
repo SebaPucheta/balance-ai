@@ -1,0 +1,4 @@
+.env
+balance-*.json
+node_modules
+.serverless

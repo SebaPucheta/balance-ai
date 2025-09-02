@@ -1,0 +1,93 @@
+service: dev-balance-ai-agent
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: ${opt:region, 'us-east-1'}
+  stage: ${opt:stage, 'dev'}
+  architecture: arm64
+  memorySize: 1024
+  timeout: 30
+  environment:
+    OPENAI_API_KEY: ${env:OPENAI_API_KEY, ''}
+    OPENAI_MODEL: ${env:OPENAI_MODEL, 'gpt-5-nano'}
+    GOOGLE_PROJECT_ID: ${env:GOOGLE_PROJECT_ID, ''}
+    GOOGLE_APPLICATION_CREDENTIALS: ${env:GOOGLE_APPLICATION_CREDENTIALS, ''}
+    USER_MEMORY_TABLE: ${env:USER_MEMORY_TABLE, 'balance-ai-memory'}
+    REGION: ${env:REGION, 'us-east-1'}
+
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:PutItem
+        - dynamodb:Query
+      Resource:
+        - arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.USER_MEMORY_TABLE}
+    - Effect: Allow
+      Action:
+        - logs:CreateLogGroup
+        - logs:CreateLogStream
+        - logs:PutLogEvents
+      Resource: "*"
+
+functions:
+  chat:
+    name: dev-balance-ai-agent
+    handler: src/handlers/chat.handler
+    description: Balance AI Agent – Lambda handler
+    layers:
+      - { Ref: FirestoreLambdaLayer }
+    environment:
+      NODE_OPTIONS: '--enable-source-maps'
+
+layers:
+  firestore:
+    name: balance-ai-firestore 
+    description: '@google-cloud/firestore and deps'
+    compatibleRuntimes:
+      - nodejs20.x
+    compatibleArchitectures:
+      - arm64
+    package:
+      artifact: layer/firestore-layer.zip
+
+plugins:
+  - serverless-esbuild
+  - serverless-dotenv-plugin
+
+package:
+  individually: true
+  patterns:
+    - '!test/**'
+    - '!tests/**'
+    - '!coverage/**'
+    - '!**/*.map'
+    - '!.env'
+    - '!node_modules/**'
+    - 'balance-7e4cc-firebase-adminsdk-fbsvc-ee8fbfffbd.json'
+    - '!layer/**'
+
+custom:
+  esbuild:
+    bundle: true
+    minify: false
+    platform: node
+    target: node20
+    format: cjs
+    sourcemap: true
+    sourcesContent: false
+    keepNames: false
+    # Estas deps viven en el Layer, no en el bundle
+    exclude:
+      - '@google-cloud/firestore'
+      - '@grpc/grpc-js'
+      - 'google-gax'
+      - 'google-auth-library'
+      - 'protobufjs'
+    external:
+      - '@google-cloud/firestore'
+      - '@grpc/grpc-js'
+      - 'google-gax'
+      - 'google-auth-library'
+      - 'protobufjs'
