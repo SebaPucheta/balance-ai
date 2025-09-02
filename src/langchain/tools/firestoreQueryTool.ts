@@ -12,7 +12,7 @@ interface TransactionDoc {
   tenant?: string;
   type?: string;
   description?: string;
-  // campos libres
+  // free fields
   [k: string]: any;
 }
 
@@ -38,7 +38,7 @@ const FilterSchema = z.object({
 
 type Catalog = { byId: Map<string,string>; byName: Map<string,string> };
 
-// cachés en memoria (viven en el runtime de Lambda)
+// in-memory caches (live in the Lambda runtime)
 let _typesCache: Catalog | null = null;
 let _catsCache: Catalog | null = null;
 
@@ -76,7 +76,7 @@ async function loadCategories(db: Firestore): Promise<Catalog> {
   return _catsCache;
 }
 
-// ---- Tool principal ----
+// ---- Main tool ----
 export function makeFirestoreQueryTool(firestore: Firestore) {
   return new DynamicStructuredTool({
     name: 'firestore_query_advanced',
@@ -86,18 +86,18 @@ export function makeFirestoreQueryTool(firestore: Firestore) {
       "El campo 'date' es Timestamp/DateTime nativo. El campo 'user' es string path '/users/<uid>'. " +
       "Además permite filtrar por substring en 'description' mediante 'descriptionContains'.",
     schema: z.object({
-      // Usuario (uno u otro)
+      // User (one or the other)
       userUid: z.string().nullable().default(null),          // "kY2F..."
-      userPath: z.string().nullable().default(null),         // "users/kY2..." o "/users/kY2..."
+      userPath: z.string().nullable().default(null),         // "users/kY2..." or "/users/kY2..."
 
-      // Type (por id o name; se resuelve contra 'transactionTypes')
+      // Type (by id or name; resolved against 'transactionTypes')
       typeId: z.string().nullable().default(null),
       typeName: z.string().nullable().default(null),
 
-      // Category (por id o name; se resuelve contra 'transactionCategories')
+      // Category (by id or name; resolved against 'transactionCategories')
       categoryId: z.string().nullable().default(null),
       categoryName: z.string().nullable().default(null),
-      categories: z.array(z.string()).default([]),           // varias categorías por nombre
+      categories: z.array(z.string()).default([]),           // multiple categories by name
 
       tenant: z.string().nullable().default(null),           // "home", etc.
 
@@ -111,7 +111,7 @@ export function makeFirestoreQueryTool(firestore: Firestore) {
         toMs: z.number().nullable().default(null)
       }).default({ fromMs: null, toMs: null }),
 
-      // Filtros libres (por si hace falta algo extra)
+      // Free filters (in case something extra is needed)
       filters: z.array(FilterSchema).default([]),
 
       descriptionContains: z.string().nullable().default(null),
@@ -126,7 +126,7 @@ export function makeFirestoreQueryTool(firestore: Firestore) {
     }),
     async func(args) {
       const col = firestore.collection('transactions');
-      // Usuario
+      // User
       let userPath: string | null = null;
       if (args.userUid) {
         userPath = `/users/${String(args.userUid).trim().replace(/^\/+/, '')}`;
@@ -135,7 +135,7 @@ export function makeFirestoreQueryTool(firestore: Firestore) {
         userPath = p.startsWith('users/') ? `/${p}` : `/${p}`;
       }
 
-      // Cargar catálogos y resolver type/category
+      // Load catalogs and resolve type/category
       let typeNameCanon: string | null = null;
       if (args.typeName || args.typeId) {
         const types = await loadTypes(firestore);
@@ -183,7 +183,7 @@ export function makeFirestoreQueryTool(firestore: Firestore) {
       if (args.amount && args.amount.gte != null) q = q.where('amount', '>=', args.amount.gte as number);
       if (args.amount && args.amount.lte != null) q = q.where('amount', '<=', args.amount.lte as number);
 
-      // Rango por 'date' (Timestamp)
+      // Range by 'date' (Timestamp)
       const fromTs = (args.date && typeof args.date.fromMs === 'number')
         ? Timestamp.fromMillis(args.date.fromMs)
         : undefined;
@@ -193,14 +193,14 @@ export function makeFirestoreQueryTool(firestore: Firestore) {
       if (fromTs) q = q.where('date', '>=', fromTs);
       if (toTs)   q = q.where('date', '<=', toTs);
 
-      // Filtros adicionales
+      // Additional filters
       if (Array.isArray(args.filters)) {
         for (const f of args.filters) {
           q = q.where(f.field, f.op as any, f.value as any);
         }
       }
 
-      // Orden
+      // Order
       for (const o of orderByList) {
         q = q.orderBy(o.field, o.direction as FirebaseFirestore.OrderByDirection | undefined);
       }
@@ -210,16 +210,16 @@ export function makeFirestoreQueryTool(firestore: Firestore) {
         q = q.startAfter(...startAfterVals);
       }
 
-      // Límite
+      // Limit
       if (limitNum > 0) {
         q = q.limit(limitNum);
       }
 
-      // 1) Ejecutar la query principal
+      // 1) Execute the main query
       const snap = await q.get();
       let docs: TransactionDoc[] = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
 
-      // 1.b) Filtrado por substring en description (case-insensitive, con normalización)
+      // 1.b) Filter by substring in description (case-insensitive, with normalization)
       if (args.descriptionContains && typeof args.descriptionContains === 'string') {
         const needle = args.descriptionContains
           .toLowerCase()
@@ -231,7 +231,7 @@ export function makeFirestoreQueryTool(firestore: Firestore) {
         });
       }
 
-      // 2) Resolver nombres de usuario ANTES de proyectar
+      // 2) Resolve user names BEFORE projecting
       const userCache = new Map<string, string>();
       async function resolveUserName(pathOrRef: TxUserRef | undefined): Promise<string | null> {
         if (!pathOrRef) return null;
@@ -259,11 +259,11 @@ export function makeFirestoreQueryTool(firestore: Firestore) {
         }
       }
 
-      // 3) Enriquecer cada documento con userDisplayName
+      // 3) Enrich each document with userDisplayName
       docs = await Promise.all(
         docs.map(async d => {
           const userDisplayName = await resolveUserName(d.user);
-          const { id, date, ...rest } = d;
+          const { date, ...rest } = d;
           let dateFormatted: string | undefined;
 
           if (date && typeof date !== 'string' && typeof date.toDate === 'function') {
@@ -277,7 +277,7 @@ export function makeFirestoreQueryTool(firestore: Firestore) {
         })
       );
 
-      // 4) Agrupación (si aplica)
+      // 4) Grouping (if applicable)
       if (args.group) {
         const by = args.group.by;
         const sum = new Set(args.group.sum);
@@ -296,7 +296,7 @@ export function makeFirestoreQueryTool(firestore: Firestore) {
         return JSON.stringify({ groups: Array.from(map.values()), count: docs.length });
       }
 
-      // 5) Proyección (si aplica)
+      // 5) Projection (if applicable)
       if (args.project.length) {
         const haveDisplay = args.project.includes('userDisplayName');
         const proj = args.project.slice();
@@ -310,7 +310,7 @@ export function makeFirestoreQueryTool(firestore: Firestore) {
         return JSON.stringify({ docs: projected, count: projected.length });
       }
 
-      // 6) Sin proyección
+      // 6) No projection
       return JSON.stringify({ docs, count: docs.length });
     }
   });

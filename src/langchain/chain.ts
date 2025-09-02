@@ -52,55 +52,59 @@ export async function buildChain(firestore: Firestore) {
   const run = async (chainInput: ChainInput): Promise<string> => {
     const { sys, userText } = await prep(chainInput);
 
-    // Construimos el historial como objetos de mensaje de LangChain
+    // We build the history as LangChain message objects
     const messages = [
       new SystemMessage(sys),
       new HumanMessage(userText),
     ];
 
     for (let hops = 0; hops < MAX_ROUND; hops++) {
-      // 1) Llamada al modelo (con tools habilitadas)
+      // 1) Call the model (with tools enabled)
       const ai = await tooled.invoke(messages);
 
-      // ¿El modelo pidió tool-calls?
+      // Did the model request tool-calls?
       const toolCalls = ai?.additional_kwargs?.tool_calls;
       if (Array.isArray(toolCalls) && toolCalls.length) {
-        // Guardamos el AIMessage "con tool_calls" en el historial
+        // We save the AIMessage "with tool_calls" in the history
         messages.push(new AIMessage({
           content: ai.content ?? "",
-          additional_kwargs: ai.additional_kwargs, // necesario para preservar tool_call_id
+          additional_kwargs: ai.additional_kwargs, // necessary to preserve tool_call_id
         }));
 
-        // Ejecutamos cada tool y añadimos ToolMessage(s)
+        // We execute each tool and add ToolMessage(s)
         for (const call of toolCalls) {
           const name = call.function?.name;
           const argsStr = call.function?.arguments ?? "{}";
           let args: any = {};
-          try { args = JSON.parse(argsStr); } catch {}
+          try {
+            args = JSON.parse(argsStr);
+          } catch {
+            // ignore
+          }
           let result: any;
           if (name === queryTool.name) {
-            // DynamicStructuredTool es runnable: invoke(args)
+            // DynamicStructuredTool is runnable: invoke(args)
             result = await queryTool.invoke(args);
           } else {
             result = { error: `Unknown tool: ${name}` };
           }
-          // Añadimos ToolMessage con el mismo tool_call_id que devolvió el modelo
+          // We add a ToolMessage with the same tool_call_id that the model returned
           messages.push(new ToolMessage({
             content: typeof result === 'string' ? result : JSON.stringify(result),
             tool_call_id: call.id,
           }));
         }
 
-        // sigue el loop: el próximo hop hará otra llamada de modelo
+        // the loop continues: the next hop will make another model call
         continue;
       }
 
-      // No hubo tool-calls: este AIMessage ya es la respuesta final
+      // There were no tool-calls: this AIMessage is the final answer
       const text = (typeof ai?.content === 'string') ? ai.content.trim() : '';
       return text || 'Perdón, no pude generar una respuesta en este momento.';
     }
 
-    // Si salimos por seguridad (demasiados hops) y no hubo respuesta final
+    // If we exit for security reasons (too many hops) and there was no final answer
     return 'Necesito un poco más de contexto o permiso para usar herramientas y completar tu pedido.';
   };
 
