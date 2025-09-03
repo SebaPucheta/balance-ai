@@ -1,12 +1,13 @@
 import { APIGatewayProxyHandlerV2 } from 'aws-lambda';
 import { MemoryRepository } from '../memory/MemoryRepository.js';
 import { Firestore } from '@google-cloud/firestore';
-import { buildChain, ChainInput } from '../langchain/chain.js';
+import { buildGraph } from '../langchain/graph/graph.js';
+import { GraphInput } from '../langchain/graph/common.js';
 
 const memory = new MemoryRepository();
 const firestore = new Firestore();
 
-let chainSingleton: Awaited<ReturnType<typeof buildChain>> | null = null;
+let graphSingleton: Awaited<ReturnType<typeof buildGraph>> | null = null;
 
 export const handler: APIGatewayProxyHandlerV2 = async (event: any) => {
   const body = event.body ? JSON.parse(event.body) : {};
@@ -16,11 +17,11 @@ export const handler: APIGatewayProxyHandlerV2 = async (event: any) => {
   if (!userId || !text) return { statusCode: 400, body: JSON.stringify({ error: 'userId and input are required' }) };
 
 
-  if (!chainSingleton) {
-    chainSingleton = await buildChain(firestore);
+  if (!graphSingleton) {
+    graphSingleton = buildGraph(firestore);
   }
 
-  const reply = await chainSingleton.run({ userId, input: text } as ChainInput);
+  const reply = await graphSingleton.run({ userId, input: text } as GraphInput);
 
   await memory.store(userId, 'user', text);
   await memory.store(userId, 'assistant', reply);
