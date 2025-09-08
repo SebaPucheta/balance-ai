@@ -1,5 +1,5 @@
-import { AIMessage, BaseMessage } from '@langchain/core/messages';
-import { END, StateGraph } from '@langchain/langgraph';
+import { AIMessage } from '@langchain/core/messages';
+import { END, START, StateGraph } from '@langchain/langgraph';
 import { Firestore } from '@google-cloud/firestore';
 import { buildModel, buildTools, GraphInput, prepareMessages } from './common.js';
 import { graphState, GraphState } from './state.js';
@@ -9,8 +9,7 @@ import { callTools } from './nodes/callTools.js';
 function shouldContinue(state: GraphState): 'playground' | 'end' {
   const { messages } = state;
   const lastMessage = messages[messages.length - 1] as AIMessage;
-  const toolCalls = lastMessage.additional_kwargs.tool_calls;
-  return toolCalls?.length ? 'playground' : 'end';
+  return lastMessage.tool_calls?.length ? 'playground' : 'end';
 }
 
 export function buildGraph(firestore: Firestore) {
@@ -22,7 +21,7 @@ export function buildGraph(firestore: Firestore) {
     .addNode('model', (state) => callModel(state, tooled))
     .addNode('playground', (state) => callTools(state, tools));
 
-  graph.setEntryPoint('model');
+  graph.addEdge(START, 'model');
   graph.addConditionalEdges('model', shouldContinue, {
     playground: 'playground',
     end: END,

@@ -6,7 +6,7 @@
   "description": "Lambda LLM + Firestore + LangChain",
   "scripts": {
     "package:dev": "SLS_DEBUG=* npx serverless package --stage dev --region us-east-1",
-    "deploy:dev": "npm run sls:package:dev && npx serverless deploy --stage dev --region us-east-1",
+    "deploy:dev": "npm run package:dev && npx serverless deploy --stage dev --region us-east-1",
     "lint": "eslint -c eslint.config.mjs . --ext .ts"
   },
   "engines": {

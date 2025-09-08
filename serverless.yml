@@ -8,13 +8,13 @@ provider:
   stage: ${opt:stage, 'dev'}
   architecture: arm64
   memorySize: 1024
-  timeout: 30
+  timeout: 120
   environment:
     OPENAI_API_KEY: ${env:OPENAI_API_KEY, ''}
     OPENAI_MODEL: ${env:OPENAI_MODEL, 'gpt-5-nano'}
     GOOGLE_PROJECT_ID: ${env:GOOGLE_PROJECT_ID, ''}
     GOOGLE_APPLICATION_CREDENTIALS: ${env:GOOGLE_APPLICATION_CREDENTIALS, ''}
-    USER_MEMORY_TABLE: ${env:USER_MEMORY_TABLE, 'balance-ai-memory'}
+    USER_MEMORY_TABLE: ${env:USER_MEMORY_TABLE, 'dev-balance-ai-memory'}
     REGION: ${env:REGION, 'us-east-1'}
 
   iamRoleStatements:
