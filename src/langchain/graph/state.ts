@@ -4,6 +4,9 @@ import { StateGraphArgs } from '@langchain/langgraph';
 export interface GraphState {
   messages: BaseMessage[];
   userId: string;
+  input: string;
+  userName: string;
+  lang: string;
 }
 
 export const graphState: StateGraphArgs<GraphState>['channels'] = {
@@ -12,6 +15,18 @@ export const graphState: StateGraphArgs<GraphState>['channels'] = {
     default: () => [],
   },
   userId: {
+    value: (x: string, y: string) => y ?? x,
+    default: () => '',
+  },
+  input: {
+    value: (x: string, y: string) => y ?? x,
+    default: () => '',
+  },
+  userName:{
+    value: (x: string, y: string) => y ?? x,
+    default: () => '',
+  },
+  lang:{
     value: (x: string, y: string) => y ?? x,
     default: () => '',
   },

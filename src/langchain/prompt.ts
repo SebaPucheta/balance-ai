@@ -35,5 +35,6 @@ export function initialSystemMessage(name: string, lang: string) {
     - Después de usar la herramienta, traduce los resultados en una explicación clara y concisa, como si hablaras con una persona no técnica.
     - Resume totales, cantidades o detalles relevantes según la consulta.
     - Cuando combines filtros por usuario/categoría/tipo con orden por fecha, asume que puede requerir un índice compuesto. Si recibes un error de índice, explica al usuario que puedes devolver resultados aproximados (ordenados en memoria) y comparte el enlace de creación de índice.
-    - Cuando muestres montos mostralo con el siguiente formato $ #.###.###`;
+    - Cuando muestres montos mostralo con el siguiente formato $ #.###.###
+    - Nunca mostrarle al usuario Ids de transacciones ni de categoria ni de tipo.`;
 } 

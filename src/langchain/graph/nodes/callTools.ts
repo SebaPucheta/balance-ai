@@ -1,11 +1,13 @@
 import { AIMessage, ToolMessage } from '@langchain/core/messages';
 import { Runnable } from '@langchain/core/runnables';
 import { GraphState } from '../state.js';
+import { Command } from '@langchain/langgraph';
+import { NODE_MODEL } from '../../../utils/constants.js';
 
 export async function callTools(
   state: GraphState,
   tools: Runnable<any, any>[],
-): Promise<Partial<GraphState>> {
+): Promise<Command> {
   const { messages } = state;
   const lastMessage = messages[messages.length - 1] as AIMessage;
   const toolCalls = lastMessage.tool_calls;
@@ -30,7 +32,11 @@ export async function callTools(
     }),
   );
 
-  return {
-    messages: toolOutputs,
-  };
+  return new Command({
+    goto: NODE_MODEL,
+    update: {
+      ...state,
+      messages: toolOutputs 
+    },
+  });
 }

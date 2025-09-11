@@ -1,16 +1,15 @@
 import { AIMessage } from '@langchain/core/messages';
 import { END, START, StateGraph } from '@langchain/langgraph';
 import { Firestore } from '@google-cloud/firestore';
-import { buildModel, buildTools, GraphInput, prepareMessages } from './common.js';
-import { graphState, GraphState } from './state.js';
+import { buildModel, buildTools } from './common.js';
+import { GraphState, graphState } from './state.js';
 import { callModel } from './nodes/callModel.js';
 import { callTools } from './nodes/callTools.js';
-
-function shouldContinue(state: GraphState): 'playground' | 'end' {
-  const { messages } = state;
-  const lastMessage = messages[messages.length - 1] as AIMessage;
-  return lastMessage.tool_calls?.length ? 'playground' : 'end';
-}
+import { loadContext } from './nodes/loadContext.js';
+import { NODE_CHITCHAT, NODE_GUARDRAILS, NODE_LOAD_CONTEXT, NODE_MODEL, NODE_PLAYGROUND, NODE_PRE_FLOW_CLASSIFIER } from '../../utils/constants.js';
+import { preFlowClassifier } from './nodes/preFlowClassifier/preFlowClassifier.js';
+import { chitchat } from './nodes/chitchat/chitchat.js';
+import { guardrails } from './nodes/guardrails/guardrails.js';
 
 export function buildGraph(firestore: Firestore) {
   const model = buildModel();
@@ -18,23 +17,54 @@ export function buildGraph(firestore: Firestore) {
   const tooled = model.bindTools(tools);
 
   const graph = new StateGraph({ channels: graphState })
-    .addNode('model', (state) => callModel(state, tooled))
-    .addNode('playground', (state) => callTools(state, tools));
+    .addNode(
+      NODE_PRE_FLOW_CLASSIFIER,
+      (state) => preFlowClassifier(state),
+      {
+        ends: [
+          NODE_CHITCHAT,
+          NODE_GUARDRAILS,
+          NODE_LOAD_CONTEXT,
+        ],
+      }
+    )
+    .addNode(
+      NODE_CHITCHAT,
+      (state) => chitchat(state),
+      { ends: [END] }
+    )
+    .addNode(
+      NODE_GUARDRAILS,
+      (state) => guardrails(state),
+      { ends: [END] }
+    )
+    .addNode(
+      NODE_LOAD_CONTEXT,
+      (state) => loadContext(state),
+      { ends: [NODE_MODEL] },
+    )
+    .addNode(
+      NODE_MODEL,
+      (state) => callModel(state, tooled),
+      { ends: [NODE_PLAYGROUND, END]}
+    )
+    .addNode(
+      NODE_PLAYGROUND,
+      (state) => callTools(state, tools),
+      { ends: [NODE_MODEL]},
+    );
 
-  graph.addEdge(START, 'model');
-  graph.addConditionalEdges('model', shouldContinue, {
-    playground: 'playground',
-    end: END,
-  });
-  graph.addEdge('playground', 'model');
+  graph.addEdge(START, NODE_PRE_FLOW_CLASSIFIER);
 
   const compiled = graph.compile();
 
-  const run = async (graphInput: GraphInput) => {
-    const messages = await prepareMessages(graphInput);
+  const run = async (graphInput: GraphState) => {
     const result = await compiled.invoke({
-      messages,
+      messages: [],
       userId: graphInput.userId,
+      input: graphInput.input,
+      userName: graphInput.userName,
+      lang: graphInput.lang,
     });
     const lastMessage = result.messages[result.messages.length - 1] as AIMessage;
     return lastMessage.content.toString();
