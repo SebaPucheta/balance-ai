@@ -325,7 +325,7 @@ export function makeFirestoreQueryTool(firestore: Firestore) {
           map.set(key, cur);
         }
 
-        let groups = Array.from(map.values());
+        const groups = Array.from(map.values());
         const orderField = orderByList.length > 0 ? orderByList[0] : null;
 
         // Si se pide ordenar por un campo que fue sumado, ordenamos los grupos por ese campo.
