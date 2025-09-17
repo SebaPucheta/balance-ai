@@ -8,14 +8,14 @@ provider:
   stage: ${opt:stage, 'dev'}
   architecture: arm64
   memorySize: 1024
-  timeout: 120
+  timeout: 180
   environment:
+    S3_BUCKET_NAME: !Ref ChartsBucket
+    GOOGLE_API_KEY: ${env:GOOGLE_API_KEY, ''}
+    APP_REGION: ${self:provider.region}
     OPENAI_API_KEY: ${env:OPENAI_API_KEY, ''}
     OPENAI_MODEL: ${env:OPENAI_MODEL, 'gpt-5-nano'}
-    GOOGLE_PROJECT_ID: ${env:GOOGLE_PROJECT_ID, ''}
-    GOOGLE_APPLICATION_CREDENTIALS: ${env:GOOGLE_APPLICATION_CREDENTIALS, ''}
     USER_MEMORY_TABLE: ${env:USER_MEMORY_TABLE, 'dev-balance-ai-memory'}
-    REGION: ${env:REGION, 'us-east-1'}
 
   iamRoleStatements:
     - Effect: Allow
@@ -24,6 +24,12 @@ provider:
         - dynamodb:Query
       Resource:
         - arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.USER_MEMORY_TABLE}
+    - Effect: "Allow"
+      Action:
+        - "s3:PutObject"
+        - "s3:GetObject"
+      Resource:
+        - "arn:aws:s3:::${self:custom.chartsBucketName}/*"
     - Effect: Allow
       Action:
         - logs:CreateLogGroup
@@ -69,6 +75,7 @@ package:
     - '!layer/**'
 
 custom:
+  chartsBucketName: ${self:service}-charts-${self:provider.stage}
   esbuild:
     bundle: true
     minify: false
@@ -95,6 +102,31 @@ custom:
 
 resources:
   Resources:
+    ChartsBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:custom.chartsBucketName}
+        OwnershipControls:
+          Rules:
+            - ObjectOwnership: BucketOwnerEnforced
+        PublicAccessBlockConfiguration:
+          BlockPublicAcls: false
+          BlockPublicPolicy: false
+          IgnorePublicAcls: false
+          RestrictPublicBuckets: false
+    ChartsBucketPolicy:
+      Type: AWS::S3::BucketPolicy
+      Properties:
+        Bucket: !Ref ChartsBucket
+        PolicyDocument:
+          Statement:
+            - Sid: PublicReadGetObject
+              Effect: Allow
+              Principal: '*'
+              Action:
+                - s3:GetObject
+              Resource:
+                - Fn::Join: [ "", [ "arn:aws:s3:::", { "Ref": "ChartsBucket" }, "/*" ] ]
     ChatMemoryTable:
       Type: 'AWS::DynamoDB::Table'
       Properties:

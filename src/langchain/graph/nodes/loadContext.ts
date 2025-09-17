@@ -1,9 +1,8 @@
 import { Command } from '@langchain/langgraph';
 import { GraphState } from '../state.js';
 import { MemoryRepository } from '../../../memory/MemoryRepository.js';
-import { buildContext } from '../../../memory/ContextBuilder.js';
 import { initialSystemMessage } from '../../prompt.js';
-import { HumanMessage, SystemMessage } from '@langchain/core/messages';
+import { AIMessage, BaseMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { NODE_MODEL } from '../../../utils/constants.js';
 
 export async function loadContext(state: GraphState): Promise<Command> {
@@ -19,11 +18,21 @@ export async function loadContext(state: GraphState): Promise<Command> {
 
 async function prepareMessages(graphInput: GraphState) {
   const memory = new MemoryRepository();
-  const recent = await memory.recent(graphInput.userId, 6);
-  const ctx = buildContext(recent);
+  const recentHistory = await memory.recent(graphInput.userId, 6);
+
   const sys = initialSystemMessage(graphInput.userName, graphInput.lang);
-  return [
+
+  const history: BaseMessage[] = recentHistory.reverse().map(msg => {
+    if (msg.role === 'user') {
+      return new HumanMessage(msg.text);
+    }
+    return new AIMessage(msg.text);
+  });
+
+  const messages: BaseMessage[] = [
     new SystemMessage(sys),
-    new HumanMessage(`${graphInput.input}\n\nContexto:\n${ctx}`),
+    ...history,
+    new HumanMessage(graphInput.input),
   ];
+  return messages;
 }

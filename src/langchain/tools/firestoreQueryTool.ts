@@ -83,8 +83,9 @@ export function makeFirestoreQueryTool(firestore: Firestore) {
     description:
       "Consulta 'transactions' con filtros por user, type, category, tenant, amount, rango de fechas; " +
       "permite ordenar (por defecto 'date' desc), paginar (startAfter) y agrupar (group by / sum). " +
-      "El campo 'date' es Timestamp/DateTime nativo. El campo 'user' es string path '/users/<uid>'. " +
-      "Además permite filtrar por substring en 'description' mediante 'descriptionContains'.",
+      "El campo 'date' es un Timestamp. El campo 'user' es un string path '/users/<uid>'. " +
+      "Además permite filtrar por substring en 'description' mediante 'descriptionContains'. " + 
+      "Para agrupar, puedes usar 'categoryName' (para agrupar por 'category'), 'typeName' (para agrupar por 'type'), o 'yearMonth' (para agrupar por mes en formato YYYY-MM).",
     schema: z.object({
       // User (one or the other)
       userUid: z.string().nullable().default(null),          // "kY2F..."
@@ -125,6 +126,7 @@ export function makeFirestoreQueryTool(firestore: Firestore) {
       group: GroupSchema.nullable().default(null)
     }),
     async func(args) {
+      console.log('makeFirestoreQueryTool', args)
       const col = firestore.collection('transactions');
       // User
       let userPath: string | null = null;
@@ -184,12 +186,22 @@ export function makeFirestoreQueryTool(firestore: Firestore) {
       if (args.amount && args.amount.lte != null) q = q.where('amount', '<=', args.amount.lte as number);
 
       // Range by 'date' (Timestamp)
-      const fromTs = (args.date && typeof args.date.fromMs === 'number')
+      let fromTs = (args.date && typeof args.date.fromMs === 'number')
         ? Timestamp.fromMillis(args.date.fromMs)
         : undefined;
-      const toTs = (args.date && typeof args.date.toMs === 'number')
+      let toTs = (args.date && typeof args.date.toMs === 'number')
         ? Timestamp.fromMillis(args.date.toMs)
         : undefined;
+
+      // Si no se especifica un rango de fechas, por defecto se busca el mes actual.
+      if (!fromTs && !toTs) {
+        const now = new Date();
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+        fromTs = Timestamp.fromDate(startOfMonth);
+        toTs = Timestamp.fromDate(endOfMonth);
+      }
+
       if (fromTs) q = q.where('date', '>=', fromTs);
       if (toTs)   q = q.where('date', '<=', toTs);
 
@@ -201,8 +213,21 @@ export function makeFirestoreQueryTool(firestore: Firestore) {
       }
 
       // Order
+      const isGroupingByYearMonth = args.group && args.group.by.includes('yearMonth');
       for (const o of orderByList) {
-        q = q.orderBy(o.field, o.direction as FirebaseFirestore.OrderByDirection | undefined);
+        // Si se agrupa por 'yearMonth', no podemos ordenar por él en la DB.
+        // La herramienta lo ordenará en memoria después.
+        if (isGroupingByYearMonth && o.field === 'yearMonth') {
+          continue;
+        }
+        // Si se está agrupando y se pide ordenar por un campo que se va a sumar,
+        // se omite el orderBy en la consulta a la DB. La herramienta lo ordenará en memoria después.
+        if (args.group && args.group.sum.length > 0) {
+          if (args.group.sum.includes(o.field) || o.field.startsWith('sum_')) {
+            continue;
+          }
+        }
+        q = q.orderBy(o.field, o.direction);
       }
 
       // Cursor
@@ -264,7 +289,7 @@ export function makeFirestoreQueryTool(firestore: Firestore) {
         docs.map(async d => {
           const userDisplayName = await resolveUserName(d.user);
           const { date, ...rest } = d;
-          let dateFormatted: string | undefined;
+          let dateFormatted: string | undefined, yearMonth: string | undefined;
 
           if (date && typeof date !== 'string' && typeof date.toDate === 'function') {
             const dt = date.toDate() as Date;
@@ -272,14 +297,20 @@ export function makeFirestoreQueryTool(firestore: Firestore) {
             const month = String(dt.getMonth() + 1).padStart(2, '0');
             const year = dt.getFullYear();
             dateFormatted = `${day}/${month}/${year}`;
+            yearMonth = `${year}-${month}`;
           }
-          return { ...rest, date: dateFormatted || date, user: userDisplayName ?? d.user };
+          return { ...rest, date: dateFormatted || date, yearMonth, user: userDisplayName ?? d.user };
         })
       );
 
       // 4) Grouping (if applicable)
       if (args.group) {
-        const by = args.group.by;
+        // Map aliases to actual field names for grouping
+        const by = args.group.by.map(field => {
+          if (field === 'categoryName') return 'category';
+          if (field === 'typeName') return 'type';
+          return field;
+        });
         const sum = new Set(args.group.sum);
         const map = new Map<string, any>();
         for (const d of docs) {
@@ -293,7 +324,25 @@ export function makeFirestoreQueryTool(firestore: Firestore) {
           if (args.group.includeDocs) { (cur as any).docs ??= []; (cur as any).docs.push(d); }
           map.set(key, cur);
         }
-        return JSON.stringify({ groups: Array.from(map.values()), count: docs.length });
+
+        let groups = Array.from(map.values());
+        const orderField = orderByList.length > 0 ? orderByList[0] : null;
+
+        // Si se pide ordenar por un campo que fue sumado, ordenamos los grupos por ese campo.
+        if (orderField && sum.has(orderField.field)) {
+          const dir = orderField.direction === 'desc' ? -1 : 1;
+          groups.sort((a, b) => dir * ((a[orderField.field] || 0) - (b[orderField.field] || 0)));
+        } else {
+          // Si se agrupa por 'yearMonth', ordenamos los grupos resultantes en memoria.
+          if (isGroupingByYearMonth) {
+            const dir = orderByList.find(o => o.field === 'yearMonth')?.direction === 'desc' ? -1 : 1;
+            groups.sort((a, b) => dir * a.key.yearMonth.localeCompare(b.key.yearMonth));
+          } else {
+            // Para otras agrupaciones, ordenamos por la clave para una salida consistente.
+            groups.sort((a, b) => JSON.stringify(a.key).localeCompare(JSON.stringify(b.key)));
+          }
+        }
+        return JSON.stringify({ groups, count: docs.length });
       }
 
       // 5) Projection (if applicable)

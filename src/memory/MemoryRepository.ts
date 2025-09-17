@@ -2,7 +2,7 @@ import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 
 const ddb = DynamoDBDocumentClient.from(
-  new DynamoDBClient({ region: process.env.AWS_REGION || process.env.REGION || 'us-east-1' })
+  new DynamoDBClient({ region: process.env.APP_REGION || 'us-east-1' })
 );
 
 export type MemoryRole = 'user' | 'assistant';
