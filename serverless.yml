@@ -46,6 +46,19 @@ functions:
       - { Ref: FirestoreLambdaLayer }
     environment:
       NODE_OPTIONS: '--enable-source-maps'
+  stream:
+    name: dev-balance-ai-streamer
+    handler: src/handlers/stream.handler
+    description: Balance AI Agent – Streaming handler
+    layers:
+      - { Ref: FirestoreLambdaLayer }
+    environment:
+      NODE_OPTIONS: '--enable-source-maps'
+    url:
+      enabled: true
+      authType: NONE
+      authorizer: none
+      invokeMode: RESPONSE_STREAM
 
 layers:
   firestore:

@@ -3,6 +3,26 @@ import { Runnable } from '@langchain/core/runnables';
 import { GraphState } from '../state.js';
 import { Command } from '@langchain/langgraph';
 import { NODE_MODEL } from '../../../utils/constants.js';
+import { formatSseEvent } from '../../../utils/event.js';
+
+const sendEvent = (responseStream: NodeJS.WritableStream, toolName: string) => {
+  if (toolName === 'list_transaction_types') {
+    responseStream.write(formatSseEvent({ text: 'Estoy verificando el tipo de transaccion' }, 'callTool'));
+    return;
+  }
+
+  if (toolName === 'list_transaction_categories') {
+    responseStream.write(formatSseEvent({ text: 'Estoy verificando la categoria de la transaccion' }, 'callTool'));
+    return;
+  }
+
+  if (toolName === 'chart_generator') {
+    responseStream.write(formatSseEvent({ text: 'Estoy generando el grafico' }, 'callTool'));
+    return;
+  }
+
+  responseStream.write(formatSseEvent({ text: 'Estoy buscando en la base de datos' }, 'callTool'));  
+}
 
 export async function callTools(
   state: GraphState,
@@ -24,6 +44,11 @@ export async function callTools(
       if (!tool) {
         throw new Error(`Tool ${call.name} not found`);
       }
+
+      if (state.responseStream) {
+        sendEvent(state.responseStream, call.name);
+      }
+
       const output = await tool.invoke(call.args);
       return new ToolMessage({
         tool_call_id: call.id,

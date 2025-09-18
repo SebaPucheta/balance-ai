@@ -7,6 +7,7 @@ import { generatePreFlowChecks } from './prompt';
 import { GraphState } from '../../state';
 import { invoke } from '../../../../utils/graph';
 import { NODE_LOAD_CONTEXT } from '../../../../utils/constants';
+import { formatSseEvent } from '../../../../utils/event';
 
 export const preFlowClassifier = async (
   state: GraphState,
@@ -30,6 +31,10 @@ export const preFlowClassifier = async (
       goto: NODE_GUARDRAILS,
       update: { ...state },
     });
+  }
+
+  if (state.responseStream) {
+    state.responseStream.write(formatSseEvent( { text: '...' }, 'preFlowClassifier'));
   }
 
   return new Command({

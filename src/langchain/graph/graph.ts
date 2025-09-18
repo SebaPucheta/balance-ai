@@ -71,6 +71,7 @@ export function buildGraph(firestore: Firestore) {
       input: graphInput.input,
       userName: graphInput.userName,
       lang: graphInput.lang,
+      responseStream: graphInput.responseStream,
     });
     const lastMessage = result.messages[result.messages.length - 1] as AIMessage;
 

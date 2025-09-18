@@ -7,6 +7,7 @@ export interface GraphState {
   input: string;
   userName: string;
   lang: string;
+  responseStream?: NodeJS.WritableStream; 
 }
 
 export const graphState: StateGraphArgs<GraphState>['channels'] = {
@@ -29,5 +30,9 @@ export const graphState: StateGraphArgs<GraphState>['channels'] = {
   lang:{
     value: (x: string, y: string) => y ?? x,
     default: () => '',
+  },
+  responseStream: {
+    value: (x?: NodeJS.WritableStream, y?: NodeJS.WritableStream) => y ?? x,
+    default: () => undefined,
   },
 };
