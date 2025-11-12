@@ -34,7 +34,7 @@ export const preFlowClassifier = async (
   }
 
   if (state.responseStream) {
-    state.responseStream.write(formatSseEvent( { text: '...' }, 'preFlowClassifier'));
+    state.responseStream.write(formatSseEvent( { text: '...', status: 'pending' }, 'preFlowClassifier'));
   }
 
   return new Command({

@@ -7,21 +7,21 @@ import { formatSseEvent } from '../../../utils/event.js';
 
 const sendEvent = (responseStream: NodeJS.WritableStream, toolName: string) => {
   if (toolName === 'list_transaction_types') {
-    responseStream.write(formatSseEvent({ text: 'Estoy verificando el tipo de transaccion' }, 'callTool'));
+    responseStream.write(formatSseEvent({ text: 'Estoy verificando el tipo de transaccion', status: 'pending' }, 'callTool'));
     return;
   }
 
   if (toolName === 'list_transaction_categories') {
-    responseStream.write(formatSseEvent({ text: 'Estoy verificando la categoria de la transaccion' }, 'callTool'));
+    responseStream.write(formatSseEvent({ text: 'Estoy verificando la categoria de la transaccion', status: 'pending' }, 'callTool'));
     return;
   }
 
   if (toolName === 'chart_generator') {
-    responseStream.write(formatSseEvent({ text: 'Estoy generando el grafico' }, 'callTool'));
+    responseStream.write(formatSseEvent({ text: 'Estoy generando el grafico', status: 'pending' }, 'callTool'));
     return;
   }
 
-  responseStream.write(formatSseEvent({ text: 'Estoy buscando en la base de datos' }, 'callTool'));  
+  responseStream.write(formatSseEvent({ text: 'Estoy buscando en la base de datos', status: 'pending' }, 'callTool'));  
 }
 
 export async function callTools(

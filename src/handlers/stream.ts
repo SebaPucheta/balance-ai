@@ -76,10 +76,10 @@ export const handler = awslambda.streamifyResponse(
       } as GraphState);
 
       // Enviamos la respuesta final del grafo.
-      sseStream.write(formatSseEvent(JSON.parse(finalMessage), 'finalResponse'));
+      sseStream.write(formatSseEvent({...JSON.parse(finalMessage), status: 'done'}, 'finalResponse'));
     } catch (error: any) {
       console.error('Error en el handler de streaming:', error);
-      responseStream.write(formatSseEvent({ message: 'Ocurrió un error en el servidor.', detail: error.message }, 'error'));
+      responseStream.write(formatSseEvent({ message: 'Ocurrió un error en el servidor.', detail: error.message, status: 'done' }, 'error'));
     } finally {
       // 2. Asegurarnos de que el stream siempre se cierre.
       responseStream.end();
