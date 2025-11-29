@@ -129,12 +129,12 @@ export function makeFirestoreQueryTool(firestore: Firestore) {
       console.log('makeFirestoreQueryTool', args)
       const col = firestore.collection('transactions');
       // User
-      let userPath: string | null = null;
+      let userDocPath: string | null = null;
       if (args.userUid) {
-        userPath = `/users/${String(args.userUid).trim().replace(/^\/+/, '')}`;
+        userDocPath = `users/${String(args.userUid).trim().replace(/^\/+/, '')}`;
       } else if (args.userPath) {
         const p = String(args.userPath).trim().replace(/^\/+/, '');
-        userPath = p.startsWith('users/') ? `/${p}` : `/${p}`;
+        userDocPath = p.startsWith('users/') ? p : `users/${p}`;
       }
 
       // Load catalogs and resolve type/category
@@ -169,7 +169,10 @@ export function makeFirestoreQueryTool(firestore: Firestore) {
 
       let q: FirebaseFirestore.Query = col;
 
-      if (userPath) q = q.where('user', '==', userPath);
+      if (userDocPath) {
+        const userRef = firestore.doc(userDocPath);
+        q = q.where('user', '==', userRef);
+      }
       if (typeNameCanon) q = q.where('type', '==', typeNameCanon);
 
       if (categoryNameCanon) {
@@ -192,6 +195,15 @@ export function makeFirestoreQueryTool(firestore: Firestore) {
       let toTs = (args.date && typeof args.date.toMs === 'number')
         ? Timestamp.fromMillis(args.date.toMs)
         : undefined;
+
+      // If toTs is set to midnight, adjust it to the end of the day to make the range inclusive for that day.
+      if (toTs) {
+        const toDate = toTs.toDate();
+        if (toDate.getHours() === 0 && toDate.getMinutes() === 0 && toDate.getSeconds() === 0 && toDate.getMilliseconds() === 0) {
+          toDate.setHours(23, 59, 59, 999);
+          toTs = Timestamp.fromDate(toDate);
+        }
+      }
 
       // Si no se especifica un rango de fechas, por defecto se busca el mes actual.
       if (!fromTs && !toTs) {

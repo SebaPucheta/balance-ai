@@ -1,6 +1,7 @@
 import { Firestore } from '@google-cloud/firestore';
 import { ChatOpenAI } from '@langchain/openai';
 import { makeFirestoreQueryTool } from '../tools/firestoreQueryTool.js';
+import { makeUserQueryTool } from '../tools/userQueryTool.js';
 import { makeTransactionTypesTool } from '../tools/transactionTypesTool.js';
 import { makeTransactionCategoriesTool } from '../tools/transactionCategoriesTool.js';
 import { Runnable } from '@langchain/core/runnables';
@@ -22,6 +23,7 @@ export const buildModel = () => model;
 export function buildTools(firestore: Firestore): Runnable<any, any>[] {
   return [
     makeFirestoreQueryTool(firestore),
+    makeUserQueryTool(firestore),
     makeTransactionCategoriesTool(firestore),
     makeTransactionTypesTool(firestore),
     //generateChartTool(),

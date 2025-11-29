@@ -21,6 +21,11 @@ const sendEvent = (responseStream: NodeJS.WritableStream, toolName: string) => {
     return;
   }
 
+  if (toolName === 'user_query') {
+    responseStream.write(formatSseEvent({ text: 'Estoy verificando la informacion del usuario', status: 'pending' }, 'callTool'));
+    return;
+  }
+
   responseStream.write(formatSseEvent({ text: 'Estoy buscando en la base de datos', status: 'pending' }, 'callTool'));  
 }
 
